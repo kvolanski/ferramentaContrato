@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ferramentas de contratos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+
+        #menu-lateral {
+            width: 200px;
+            background-color: #f0f0f0;
+            padding: 10px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+
+        #conteudo {
+            flex: 1;
+            padding: 20px;
+        }
+
+        #conteudo iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        a {
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+            display: block; /* Para preencher a largura do elemento pai */
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        a:hover {
+            background-color: #ddd;
+        }
+
+        /* Estilos específicos da calculadora */
+        #calculadora, #ocr {
+            display: none;
+        }
+
+        #calculadora label, #ocr label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        #calculadora input, #ocr input {
+            width: 150px;
+            padding: 5px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        #calculadora button, #ocr button {
+            padding: 8px 16px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        #calculadora #resultado, #ocr #outputText {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        #calculadora div, #ocr div {
+            margin-bottom: 10px;
+        }
+
+        /* Estilos do loading */
+        #loading {
+            display: none;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        #loading::after {
+            content: '';
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #4CAF50;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script src="https://cdn.rawgit.com/naptha/tesseract.js/1.0.10/dist/tesseract.js"></script>
+</head>
+<body>
+    <div id="menu-lateral">
+        <ul>
+            <li><a href="#" onclick="mostrarHome()">Home</a></li>
+            <li><a href="#" onclick="mostrarCalculadora()">Calculadora de Quotas</a></li>
+            <li><a href="#" onclick="mostrarOCR()">Converter imagem para texto</a></li>
+        </ul>
+    </div>
+    <div id="conteudo">
+        <div id="home" style="display: none;">
+            <h1>Bem vindo!</h1>
+        </div>
+        <div id="calculadora">
+            <h1>Calculadora de Quotas de Participação Societária</h1>
+            <label for="capitalSocial">Capital Social Total:</label>
+            <input type="number" id="capitalSocial" step="0.01"><br>
+            <label for="quantidadeSocios">Quantidade de Sócios:</label>
+            <input type="number" id="quantidadeSocios" min="1" max="10" onchange="criarCampos()"><br>
+            <div id="camposSocios"></div>
+            <label for="valorQuota">Valor da Quota:</label>
+            <input type="number" id="valorQuota" value="1.00"><br>
+            <button onclick="calcularQuotas()">Calcular Quotas</button>
+            <div id="resultado"></div>
+        </div>
+        <div id="ocr">
+            <h1>Converter imagem para texto</h1>
+            <!-- Botão de seleção de arquivo personalizado -->
+            <label for="inputImage" class="custom-file-input">Escolher Arquivo</label>
+            <input type="file" id="inputImage" accept="image/*">
+            <div id="fileInfo"></div>
+
+            <button onclick="extractText()">Extrair Texto</button>
+            <div id="loading"></div>
+            <div id="outputText"></div>
+        </div>
+    </div>
+
+    <script>
+	mostrarHome();
+	
+        function criarCampos() {
+            const quantidadeSocios = parseInt(document.getElementById("quantidadeSocios").value);
+            const camposSocios = document.getElementById("camposSocios");
+
+            camposSocios.innerHTML = ""; // Limpar campos existentes
+
+            for (let i = 1; i <= quantidadeSocios; i++) {
+                const divSocio = document.createElement("div");
+                divSocio.innerHTML = `
+                    <label for="participacaoSocio${i}">Participação do Sócio ${i}:</label>
+                    <input type="text" id="participacaoSocio${i}" maxlength="10"><br>
+                    <div id="quotasSocio${i}"></div>
+                `;
+                camposSocios.appendChild(divSocio);
+            }
+        }
+
+        function formatarValor(input) {
+            const valor = parseFloat(input.value.replace(",", ".")).toFixed(2);
+            input.value = valor.replace(".", ",");
+        }
+
+        function calcularQuotas() {
+            const capitalSocial = parseFloat(document.getElementById("capitalSocial").value);
+            const quantidadeSocios = parseInt(document.getElementById("quantidadeSocios").value);
+            const valorQuota = parseFloat(document.getElementById("valorQuota").value);
+
+            let totalParticipacao = 0;
+            const quotasPorSocio = [];
+
+            for (let i = 1; i <= quantidadeSocios; i++) {
+                const participacaoSocio = parseFloat(document.getElementById(`participacaoSocio${i}`).value.replace(",", "."));
+                totalParticipacao += participacaoSocio;
+                quotasPorSocio.push(Math.floor((participacaoSocio * 100) / (valorQuota * 100)));
+            }
+
+            const numeroQuotasTotal = Math.floor((totalParticipacao * 100) / (valorQuota * 100));
+            let quotasRestantes = numeroQuotasTotal - quotasPorSocio.reduce((acc, curr) => acc + curr, 0);
+
+            // Distribuir quotas restantes para os sócios com maiores participações
+            while (quotasRestantes > 0) {
+                const maxParticipacaoIndex = quotasPorSocio.indexOf(Math.max(...quotasPorSocio));
+                quotasPorSocio[maxParticipacaoIndex]++;
+                quotasRestantes--;
+            }
+
+            const resultados = [];
+
+            for (let i = 1; i <= quantidadeSocios; i++) {
+                const porcentagemParticipacao = (parseFloat(document.getElementById(`participacaoSocio${i}`).value.replace(",", ".")) / totalParticipacao) * 100;
+                const numeroQuotasSocio = quotasPorSocio[i - 1];
+                resultados.push(`Sócio ${i} possui aproximadamente ${numeroQuotasSocio} quotas, o que corresponde a ${porcentagemParticipacao.toFixed(2)}% do total de quotas.`);
+            }
+
+            resultados.push(`O total de quotas é de ${numeroQuotasTotal} e a participação total é de 100% do capital social.`);
+
+            document.getElementById("resultado").innerText = resultados.join("\n");
+        }
+
+        function mostrarHome() {
+            document.getElementById("home").style.display = "block";
+            document.getElementById("calculadora").style.display = "none";
+            document.getElementById("ocr").style.display = "none";
+        }
+
+        function mostrarCalculadora() {
+            document.getElementById("home").style.display = "none";
+            document.getElementById("calculadora").style.display = "block";
+            document.getElementById("ocr").style.display = "none";
+        }
+
+        function mostrarOCR() {
+            document.getElementById("home").style.display = "none";
+            document.getElementById("calculadora").style.display = "none";
+            document.getElementById("ocr").style.display = "block";
+        }
+
+        function extractText() {
+            var inputImage = document.getElementById('inputImage');
+            var outputText = document.getElementById('outputText');
+            var loading = document.getElementById('loading');
+            var fileInfo = document.getElementById('fileInfo');
+
+            loading.style.display = 'block';
+
+            var file = inputImage.files[0];
+            if (file) {
+                fileInfo.textContent = 'Arquivo selecionado: ' + file.name;
+
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var image = new Image();
+                    image.src = e.target.result;
+
+                    image.onload = function () {
+                        Tesseract.recognize(
+                            image,
+                            'por', // Alterado para o idioma português brasileiro
+                            {
+                                logger: info => console.log(info) // Exibir informações de log no console (opcional)
+                            }
+                        ).then(result => {
+                            loading.style.display = 'none';
+                            if (result && result.text) {
+                                // Verificar quebras de linha
+                                var formattedText = result.text.replace(/\n/g, '<br>');
+                                outputText.innerHTML = formattedText;
+                            } else {
+                                console.error('Nenhum texto reconhecido.');
+                            }
+                        }).catch(error => {
+                            loading.style.display = 'none';
+                            console.error(error);
+                        });
+                    };
+                };
+                reader.readAsDataURL(file);
+            } else {
+                fileInfo.textContent = ''; // Limpa o texto de informações sobre o arquivo
+                loading.style.display = 'none';
+                alert('Selecione uma imagem do documento antes de extrair o texto.');
+            }
+        }
+    </script>
+</body>
+</html>
